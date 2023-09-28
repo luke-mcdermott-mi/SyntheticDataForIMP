@@ -1,140 +1,55 @@
-# Efficient-Dataset-Condensation
-Official PyTorch implementation of **"[Dataset Condensation via Efficient Synthetic-Data Parameterization](https://arxiv.org/abs/2205.14959)"**, published at **ICML'22**
+Code is based on Efficient Dataset Condensation[https://github.com/snu-mllab/Efficient-Dataset-Condensation], see this for downloading precomputed distilled data.
 
-![image samples](images/title.png)
+# Synthetic Data and Iterative Magnitude Pruning: A Linear Mode Connectivity Study
+Early notes for how to run things, a rework for this repository is coming soon.
 
-> **Abstract** *The great success of machine learning with massive amounts of data comes at a price of huge computation costs and storage for training and tuning. 
-Recent studies on dataset condensation attempt to reduce the dependence on such massive data by synthesizing a compact training dataset. 
-However, the existing approaches have fundamental limitations in optimization due to the limited representability of synthetic datasets without considering any data regularity characteristics.
-To this end, we propose a novel condensation framework that generates multiple synthetic data with a limited storage budget via efficient parameterization considering data regularity. 
-We further analyze the shortcomings of the existing gradient matching-based condensation methods and develop an effective optimization technique for improving the condensation of training data information. 
-We propose a unified algorithm that drastically improves the quality of condensed data against the current state-of-the-art on CIFAR-10, ImageNet, and Speech Commands.*
+run this to test distilled data for cifar-10
+python test.py -d cifar10 -n convnet -f 2 --ipc 10 --repeat 3 --data_dir './results/'
 
-## Basic results ([Data Drive](https://drive.google.com/drive/folders/1yh0Hf2ia4b-1edMiAr1kXCH4eUcYNfmz?usp=sharing))
-Top-1 test accuracies with ConvNet-3 (ResNetAP-10 for ImageNet)
+To find the synthetic tickets, you need to run IMP with the distilled training: 
+python prune.py -d cifar10 -f 2 --ipc 50 --data_dir './results/' --device 3
+python prune.py -d imagenet -f 3 --ipc 20 --data_dir './results/' --device 5 --nclass 100
 
-- **1 images/class**
+Once you get all the untrained subnetworks / synthetic tickets at initialization, train them on real data across seeds 0 & 1:
+python train_pruned.py -d cifar10 --device 1 --data_dir './results/' --model resnet18_bn
+python train_pruned.py -d imagenet --device 3 --data_dir './results/' --model resnet10_bn --ipc_path 10 --nclass 10
 
-| Method | CIFAR-10 | SVHN | MNIST | FashionMNIST |
-| :------: | :-----:  | :----: | :-----: | :----: |
-| **IDC-I** | 36.7 | 46.7 | 88.9 | 70.7 |   
-| **IDC** | 50.6 | 68.5 | 94.2 | 81.0 | 
+To check linear interpolation, you need to have the seed0_iter and seed1_iter models done. Then run 
+python lmc.py -d cifar100 --device 3 --data_dir './results/' --model convnet3 --ipc_path 1
+python lmc.py -d imagenet --nclass 10 --device 2 --data_dir './results/' --model resnet10_bn --ipc_path 10
 
-- **10 images/class**
+To get lottery tickets with IMP run
+python prune_imp.py -d cifar10 --device 6 --data_dir './results/' --model resnet18_bn
+python prune_imp.py -d imagenet --nclass 100 --device 5 --data_dir './results/' --model resnet10_bn
 
-| Method | CIFAR-10 | CIFAR-100 | SVHN | MNIST | FashionMNIST | ImageNet-10  | ImageNet-100  |
-| :------: | :-----:  | :--------: | :----: | :-----: | :----: | :------:| :------:|
-| **IDC-I** |  58.3  | 36.6 | 77.0 | 98.0 | 85.3 | 61.4 | 29.2  |
-| **IDC** | 67.5 | 45.1 | 87.5 | 98.4 | 86.0  | 72.8 | 46.7  |
+To retrain the untrained imp-chosen subnetworks:
+python train_imp.py -d cifar10 --device 1 --data_dir './results/' --model resnet18_bn --seed 4
+python train_imp.py -d imagenet --nclass 10 --device 2 --data_dir './results/' --model resnet18_bn --seed 0
 
-- **20 images/class**
+To check linear interpolation of imp subnetworks, you need to have the seed0_iterx_imp and seed1_iterx_imp models done. Then run 
+python lmc_imp.py -d cifar100 --device 2 --data_dir './results/' --model resnet18_bn
+python lmc_imp.py -d imagenet --nclass 10 --device 2 --data_dir './results/' --model resnet10_bn
 
-| Method | CIFAR-100 | ImageNet-10  | ImageNet-100  |
-| :----: | :----: | :-----: | :----: | 
-| **IDC-I** | 41.5 | 65.5 | 34.5 |
-| **IDC** | 49.0 | 76.6 | 53.7 | 
+To get the linear interpolation of the dense model at different points in training
+python lmc_dense_training.py -d cifar10 --device 4 --data_dir './results/' --model resnet10_bn
 
-- **50 images/class**
+To get the loss landscape of a model, first you need seeds0-4 trained, then run:
+python multiple_lmc.py -d cifar10 --device 3 --data_dir './results/' --model resnet10_bn --prune_iter 4
 
-| Method | CIFAR-10 | SVHN | MNIST | FashionMNIST |
-| :------: | :-----:  | :----: | :-----: | :----: |
-| **IDC-I** |  69.5 | 87.9 | 98.8 | 89.1 |
-| **IDC** | 74.5 | 90.1 | 99.1 | 86.2 |
+To compute all the distances between your different trained seeds run:
+python calc_model_distance.py -d cifar10 --device 3 --data_dir './results/' --model convnet3 --prune_iter 9
 
+To get synthetic tickets after some pretraining, do
+python prune_rewind.py -d cifar10 -f 2 --ipc 10 --data_dir './results/' --device 3
 
-## Requirements
-- The code has been tested with PyTorch 1.11.0.   
-- To run the codes, install efficientnet package ```pip install efficientnet_pytorch```
+To linear interpolated just a single layer, you need to have the seed0_iter and seed1_iter models done. Then run 
+python layerwise_lmc.py -d cifar10 --device 3 --data_dir './results/' --model convnet3
 
-## Updates
-- (2022.06.28) We uploaded CIFAR-100 condensed data with 10 and 20 images per class ([link](https://drive.google.com/drive/folders/1yh0Hf2ia4b-1edMiAr1kXCH4eUcYNfmz?usp=sharing)). Note, all of our data are unnormalized, so normalization is required for training.  
-- (2022.06.28) We uploaded codes for speech data (see [```./speech```](https://github.com/snu-mllab/Efficient-Dataset-Condensation/tree/main/speech)).
+To get random subnetowkrs run
+python random_prune.py -d cifar10 --device 3 --data_dir './results/' --model resnet18_bn
 
-## Test Condensed Data
-### Download data
-You can download condensed data evaluated in our paper from [Here](https://drive.google.com/drive/folders/1yh0Hf2ia4b-1edMiAr1kXCH4eUcYNfmz?usp=sharing).
-- The possible datasets are CIFAR-10, MNIST, SVHN, FashionMNIST, and ImageNet (10, 100 subclasses).
-- To test data, download the entire dataset folder (e.g., cifar10) and locate the folder at ```./results```. 
+To get the loss landscapes for models trained on real data, but the corresponding spot on distilled data: 
+python distilled_loss_landscape.py -d cifar10 -f 2 --ipc 10 --data_dir './results/' --device 3 --prune_iter 9
 
-### Training neural networks on condensed data
-- Set ```--data_dir``` and ```--imagenet_dir``` in ```argument.py``` to point the folder containing the original dataset (required for measuring test accuracy).   
-
-Then run the following codes:   
-```
-python test.py -d [dataset] -n [network] -f [factor] --ipc [image/class] --repeat [#repetition]
-```
-- To evaluate **IDC-I**, set ```-f 1```. To evaluate **IDC**, set ```-f 3``` for ImageNet and ```-f 2``` for others.
-- For detailed explanation for arguments, please refer to ```argument.py```
-
-As an example, 
-- To evaluate IDC (10 images/class) on CIFAR-10 and ConvNet-3 for 3 times, run
-  ```
-  python test.py -d cifar10 -n convnet -f 2 --ipc 10 --repeat 3
-  ```
-- To evaluate IDC (20 images/class) on ImageNet with 10 classes and ResNetAP-10 for 3 times, run
-  ```
-  python test.py -d imagenet --nclass 10 -n resnet_ap -f 3 --ipc 20 --repeat 3
-  ```
-
-With **10 images/class** condensed data, the top-1 test accuracies of ConvNet-3 (ResNetAP-10 for ImageNet) are about
-| Method | CIFAR-10 | CIFAR-100 | SVHN | MNIST | FashionMNIST | ImageNet-10  | ImageNet-100  |
-| :----------: | :------------:  | :------------: | :----: | :-----: | :----: | :----------:| :----------:|
-| **IDC-I** |  58.3  | 36.6 | 77.0 | 98.0 |  85.3 | 61.4 | 29.2  |
-| **IDC** | 67.5 | 45.1 | 87.5 | 98.4 | 86.0  | 72.8 | 46.7  |
-
-
-
-You can also test **other condensed methods** by setting ```-s [dsa, kip, random, herding]```
-- We provide DSA and KIP datasets in the case of CIFAR-10. 
-- To evaluate Herding, download the pretrained networks ([link](https://drive.google.com/drive/folders/1Sk-IVb7YotbZ07WNJwfp4ID3tv6_MTnx?usp=sharing)) at ```./results```. You can modify the location of the pretrained networks at ```coreset.py``` (*load_pretrained_herding* fn).
-
-
-## Optimize Condensed Data
-To reproduce our condensed data (except for ImageNet-100), simply run
-```
-python condense.py --reproduce  -d [dataset] -f [factor] --ipc [image/class]
-```
-- Set ```--data_dir``` and ```--imagenet_dir``` in ```argument.py``` to point the folder containing the original dataset.   
-- The results will be saved at ```./results/[dataset]/[expname]```. 
-- We provide specific argument settings for each dataset at ```./misc/reproduce.py```.
-- In the case of **ImageNet-100**, we use the tricks below for faster optimization.
-
-### Faster optimization
-1. Utilizing pretrained networks   
-    - To train pretrained networks (which were used in condensation stage), run
-    ```
-    python pretrain.py -d imagenet --nclass 100 -n resnet_ap --pt_from [pretrain epochs] --seed [seed]
-    ```
-    - In our ImageNet-100 experiments, we used ```--pt_from 5``` and train networks with 10 random seeds.
-    - For ImageNet-10, ```--pt_from 10``` will be good. 
-
-
-2. Multi-processing
-    - We partition the classes and do condensation with multiple processors (```condense_mp.py```).
-    - ```--nclass_sub``` means the number of classes per partition and ```--phase``` indicates the partition number. 
-
-To sum up, after saving the pretrained models, run
-```
-python condense_mp.py --reproduce  -d imagenet --nclass 100 --pt_from 5 -f [factor] --ipc [image/class] --nclass_sub 20 --phase [0,1,2,3,4]
-```
-- You need to assign a different phase number to each processor.
-- In the test code, we aggregate the resulted condensed data. 
-- To reduce the memory requirement, use smaller ```--nclass_sub``` (#phase = #class/nclass_sub).
-
-## Train Networks on Original Training Set
-```
-python train.py -d [dataset] -n [network]
-```
-- Our code load data on memory at the beginning. If you don't want this, set ```-l False```.
-- For ImageNet, you can choose the number of subclasses by ```--nclass [#class]```.
-- To save checkpoints, set ```--save_ckpt```.
-
-## Citation
-```
-@inproceedings{kimICML22,
-title = {Dataset Condensation via Efficient Synthetic-Data Parameterization},
-author = {Kim, Jang-Hyun and Kim, Jinuk and Oh, Seong Joon and Yun, Sangdoo and Song, Hwanjun and Jeong, Joonhyun and Ha, Jung-Woo and Song, Hyun Oh},
-booktitle = {International Conference on Machine Learning (ICML)},
-year = {2022}
-}
-```
+To get a list of sorted eigenvalues of the hessian for sharpness run this:
+python calc_hessian.py -d cifar10 --device 3 --data_dir './results/' --model resnet18_bn --prune_iter 9
