@@ -1,8 +1,5 @@
 Code is based on Efficient Dataset Condensation[https://github.com/snu-mllab/Efficient-Dataset-Condensation], see this for downloading precomputed distilled data.
 
-# Synthetic Data and Iterative Magnitude Pruning: A Linear Mode Connectivity Study
-Early notes for how to run things, a rework for this repository is coming soon.
-
 run this to test distilled data for cifar-10
 python test.py -d cifar10 -n convnet -f 2 --ipc 10 --repeat 3 --data_dir './results/'
 
